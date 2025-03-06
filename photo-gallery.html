@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swipeable Photo Gallery</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            overflow-x: hidden;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+        }
+        
+        .gallery-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            height: 500px;
+            margin: 0 auto;
+            overflow: hidden;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .gallery {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.3s ease-out;
+        }
+        
+        .photo {
+            flex: 0 0 100%;
+            height: 100%;
+            background-position: center;
+            background-size: cover;
+            background-repeat: no-repeat;
+        }
+        
+        .nav-buttons {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 800px;
+            margin: 20px auto;
+        }
+        
+        .nav-btn {
+            background-color: #4a89dc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.2s;
+        }
+        
+        .nav-btn:hover {
+            background-color: #3b6fc1;
+        }
+        
+        .nav-btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .photo-counter {
+            text-align: center;
+            margin: 10px 0;
+            font-size: 16px;
+        }
+        
+        .dots-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 15px;
+        }
+        
+        .dot {
+            width: 12px;
+            height: 12px;
+            background-color: #ccc;
+            border-radius: 50%;
+            margin: 0 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .dot.active {
+            background-color: #4a89dc;
+        }
+        
+        @media (max-width: 768px) {
+            .gallery-container {
+                height: 350px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Swipeable Photo Gallery</h1>
+        
+        <div class="gallery-container">
+            <div class="gallery" id="gallery">
+                <!-- Photos will be added by JavaScript -->
+            </div>
+        </div>
+        
+        <div class="photo-counter">
+            <span id="current">1</span> / <span id="total">0</span>
+        </div>
+        
+        <div class="dots-container" id="dots-container">
+            <!-- Dots will be added by JavaScript -->
+        </div>
+        
+        <div class="nav-buttons">
+            <button id="prev-btn" class="nav-btn" disabled>Previous</button>
+            <button id="next-btn" class="nav-btn">Next</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Sample photo URLs - replace with your own
+            const photos = [
+                '/api/placeholder/800/500',
+                '/api/placeholder/800/500',
+                '/api/placeholder/800/500',
+                '/api/placeholder/800/500',
+                '/api/placeholder/800/500'
+            ];
+            
+            // DOM elements
+            const gallery = document.getElementById('gallery');
+            const prevBtn = document.getElementById('prev-btn');
+            const nextBtn = document.getElementById('next-btn');
+            const currentPhotoEl = document.getElementById('current');
+            const totalPhotosEl = document.getElementById('total');
+            const dotsContainer = document.getElementById('dots-container');
+            
+            // State variables
+            let currentIndex = 0;
+            let startX = 0;
+            let isDragging = false;
+            let currentTranslate = 0;
+            
+            // Set total photos count
+            totalPhotosEl.textContent = photos.length;
+            
+            // Add photos to gallery
+            photos.forEach((photoUrl, index) => {
+                const photoDiv = document.createElement('div');
+                photoDiv.className = 'photo';
+                photoDiv.style.backgroundImage = `url(${photoUrl})`;
+                gallery.appendChild(photoDiv);
+                
+                // Create dot indicator
+                const dot = document.createElement('div');
+                dot.className = index === 0 ? 'dot active' : 'dot';
+                dot.addEventListener('click', () => goToPhoto(index));
+                dotsContainer.appendChild(dot);
+            });
+            
+            // Event listeners for buttons
+            prevBtn.addEventListener('click', previousPhoto);
+            nextBtn.addEventListener('click', nextPhoto);
+            
+            // Touch events for swiping
+            gallery.addEventListener('touchstart', touchStart);
+            gallery.addEventListener('touchmove', touchMove);
+            gallery.addEventListener('touchend', touchEnd);
+            
+            // Mouse events for dragging
+            gallery.addEventListener('mousedown', dragStart);
+            gallery.addEventListener('mousemove', drag);
+            gallery.addEventListener('mouseup', dragEnd);
+            gallery.addEventListener('mouseleave', dragEnd);
+            
+            // Prevent context menu on long press
+            gallery.addEventListener('contextmenu', e => e.preventDefault());
+            
+            function updateGallery() {
+                gallery.style.transform = `translateX(${-currentIndex * 100}%)`;
+                
+                // Update counter
+                currentPhotoEl.textContent = currentIndex + 1;
+                
+                // Update buttons
+                prevBtn.disabled = currentIndex === 0;
+                nextBtn.disabled = currentIndex === photos.length - 1;
+                
+                // Update dots
+                Array.from(dotsContainer.children).forEach((dot, index) => {
+                    dot.className = index === currentIndex ? 'dot active' : 'dot';
+                });
+            }
+            
+            function previousPhoto() {
+                if (currentIndex > 0) {
+                    currentIndex--;
+                    updateGallery();
+                }
+            }
+            
+            function nextPhoto() {
+                if (currentIndex < photos.length - 1) {
+                    currentIndex++;
+                    updateGallery();
+                }
+            }
+            
+            function goToPhoto(index) {
+                currentIndex = index;
+                updateGallery();
+            }
+            
+            function touchStart(event) {
+                startX = event.touches[0].clientX;
+                isDragging = true;
+                currentTranslate = -currentIndex * 100;
+            }
+            
+            function touchMove(event) {
+                if (!isDragging) return;
+                
+                const currentX = event.touches[0].clientX;
+                const diff = (currentX - startX) / gallery.offsetWidth * 100;
+                
+                // Add resistance at the edges
+                if ((currentIndex === 0 && diff > 0) || 
+                    (currentIndex === photos.length - 1 && diff < 0)) {
+                    diff /= 3; // More resistance
+                }
+                
+                gallery.style.transform = `translateX(${currentTranslate + diff}%)`;
+            }
+            
+            function touchEnd(event) {
+                if (!isDragging) return;
+                
+                const currentX = event.changedTouches[0].clientX;
+                const diff = currentX - startX;
+                
+                // Threshold for swipe (20% of gallery width)
+                const threshold = gallery.offsetWidth * 0.2;
+                
+                if (diff > threshold && currentIndex > 0) {
+                    previousPhoto();
+                } else if (diff < -threshold && currentIndex < photos.length - 1) {
+                    nextPhoto();
+                } else {
+                    // Return to current photo
+                    updateGallery();
+                }
+                
+                isDragging = false;
+            }
+            
+            function dragStart(event) {
+                startX = event.clientX;
+                isDragging = true;
+                currentTranslate = -currentIndex * 100;
+                
+                // Prevent image dragging
+                event.preventDefault();
+            }
+            
+            function drag(event) {
+                if (!isDragging) return;
+                
+                const currentX = event.clientX;
+                const diff = (currentX - startX) / gallery.offsetWidth * 100;
+                
+                // Add resistance at the edges
+                let adjustedDiff = diff;
+                if ((currentIndex === 0 && diff > 0) || 
+                    (currentIndex === photos.length - 1 && diff < 0)) {
+                    adjustedDiff = diff / 3;
+                }
+                
+                gallery.style.transform = `translateX(${currentTranslate + adjustedDiff}%)`;
+            }
+            
+            function dragEnd(event) {
+                if (!isDragging) return;
+                
+                const currentX = event.clientX || startX; // In case of mouseleave
+                const diff = currentX - startX;
+                
+                const threshold = gallery.offsetWidth * 0.2;
+                
+                if (diff > threshold && currentIndex > 0) {
+                    previousPhoto();
+                } else if (diff < -threshold && currentIndex < photos.length - 1) {
+                    nextPhoto();
+                } else {
+                    updateGallery();
+                }
+                
+                isDragging = false;
+            }
+            
+            // Initialize gallery
+            updateGallery();
+            
+            // Add keyboard navigation
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'ArrowLeft') {
+                    previousPhoto();
+                } else if (e.key === 'ArrowRight') {
+                    nextPhoto();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
